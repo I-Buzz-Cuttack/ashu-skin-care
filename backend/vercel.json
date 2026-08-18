@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "version": 2,
   "rewrites": [
     {
@@ -6,4 +7,7 @@
       "destination": "/api/index.js"
     }
   ]
+=======
+  "version": 2
+>>>>>>> e46b07659b746015d8d5c133fb812339876ffb2c
 }
