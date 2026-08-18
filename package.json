@@ -1,0 +1,9 @@
+{
+  "name": "ashu-skin-care",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix Frontend ci && npm --prefix Frontend run build",
+    "dev": "npm --prefix Frontend run dev"
+  }
+}
