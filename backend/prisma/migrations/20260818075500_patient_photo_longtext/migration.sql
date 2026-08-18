@@ -1,0 +1,1 @@
+ALTER TABLE `patients` MODIFY `photo` LONGTEXT NULL;
