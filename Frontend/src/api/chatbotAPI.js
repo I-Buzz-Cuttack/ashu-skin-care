@@ -6,6 +6,6 @@ export const sendChatbotMessage = ({ message, history, pendingAction }) => {
     history,
     pendingAction,
   }, {
-    timeout: 30000,
+    timeout: 90000,
   });
 };
