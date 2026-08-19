@@ -103,8 +103,10 @@ const effectivePermissions = query.data ?? permissions ?? [];
     [effectivePermissions],
   );
 
-  const canAccess = (resource, action = 'read') =>
-    canAccessPermission({ role, permissionSet, resource, action });
+  const canAccess = (resource, action = 'read') => {
+    if (isSuperAdmin) return true;
+    return canAccessPermission({ role, permissionSet, resource, action });
+  };
 
   return {
     role,

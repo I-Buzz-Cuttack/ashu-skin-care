@@ -10,6 +10,7 @@ import { filterSidebarItems } from "./sidebarFilters";
 import { useGetMenuSettingsByRoleQuery } from "@store/api/menuSettingsApi";
 import usePermissions from "@hooks/usePermissions";
 import { ROLES } from "@constants/roles";
+import { isSuperAdminRole, normalizeRole } from "@utils/permission.utils";
 
 // ── Each role's base path prefix ──────────────────────────────
 // Maps /super-admin/ipd  →  /radiologist/ipd  (for RADIOLOGIST)
@@ -60,21 +61,23 @@ const DynamicSidebar = ({
   ...sidebarProps
 }) => {
   const currentRole = useSelector(selectCurrentRole);
+  const normalizedRole = normalizeRole(currentRole);
+  const isSuperAdmin = isSuperAdminRole(currentRole);
   const resolved = getSidebarConfig(sidebarKey || currentRole);
   const { canAccess: assignedCanAccess, isReady } = usePermissions();
 
   const { data: savedMenuSettings } = useGetMenuSettingsByRoleQuery(
     currentRole,
-    { skip: !currentRole },
+    { skip: !currentRole || isSuperAdmin },
   );
 
   // SuperAdmin → its own hardcoded list
   // Everyone else → MASTER_NAV_ITEMS with paths rewritten to their role's base
-  const roleBase = ROLE_BASE_PATH[currentRole];
+  const roleBase = ROLE_BASE_PATH[normalizedRole];
 
 const rawNavItems =
   navItems ??
-  (currentRole === ROLES.SUPER_ADMIN
+  (isSuperAdmin
     ? SIDEBAR_NAV_ITEMS[ROLES.SUPER_ADMIN]
     : MASTER_NAV_ITEMS);
 
@@ -99,12 +102,13 @@ const remapMenuItem = (item, roleBase) => ({
 });
 
 const currentNavItems =
-  currentRole === ROLES.SUPER_ADMIN
+  isSuperAdmin
     ? rawNavItems
     : rawNavItems.map((item) => remapMenuItem(item, roleBase));
 
-  const resolvedMenuAccess =
-    menuAccess ||
+  const resolvedMenuAccess = isSuperAdmin
+    ? null
+    : menuAccess ||
     (savedMenuSettings?.items
       ? Object.fromEntries(
           currentNavItems.map((item) => [
@@ -115,7 +119,7 @@ const currentNavItems =
       : null);
 
   const visibleNavItems = filterSidebarItems(currentNavItems, {
-    role: currentRole,
+    role: normalizedRole,
     menuAccess: resolvedMenuAccess,
     // canAccess:
     //   canAccess ||
