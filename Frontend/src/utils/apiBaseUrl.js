@@ -1,7 +1,14 @@
 const API_PREFIX = "/api";
+const PRODUCTION_API_ORIGINS = {
+  "ashu-skin-care.onrender.com": "https://ashu-skin-care-backend.onrender.com",
+};
 
 export const getApiBaseUrl = () => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
+  const hostFallback = typeof window !== "undefined"
+    ? PRODUCTION_API_ORIGINS[window.location.hostname]
+    : "";
+  const baseUrl = configuredBaseUrl || hostFallback;
 
   if (!baseUrl) {
     return API_PREFIX;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Play, Search, ShieldCheck, UserRound, X } from "lucide-react";
+import jsQR from "jsqr";
 
 import PageHeader from "@components/layout/PageHeader/PageHeader";
 import Button from "@components/ui/Button/Button";
@@ -74,6 +75,49 @@ const patientSearchValues = (patient) => [
   patient.adharNo,
   patient.nationalId,
 ].map(normalize).filter(Boolean);
+
+const unwrapSingle = (response) => {
+  const body = response?.data;
+  return body?.result?.data ?? body?.result ?? body?.data ?? body;
+};
+
+const formatDate = (value, options) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("en-IN", options);
+};
+
+const calculateAge = (patient) => {
+  const dob = patient?.dob || patient?.dateOfBirth || patient?.date_of_birth;
+  if (!dob) return patient?.age ? `${patient.age} yrs` : "-";
+  const birth = new Date(dob);
+  if (Number.isNaN(birth.getTime())) return patient?.age ? `${patient.age} yrs` : "-";
+  const now = new Date();
+  let years = now.getFullYear() - birth.getFullYear();
+  let months = now.getMonth() - birth.getMonth();
+  if (now.getDate() < birth.getDate()) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  return `${years}y ${months}m`;
+};
+
+const Section = ({ title, children }) => (
+  <section className="border-t border-slate-100 p-5">
+    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{title}</p>
+    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">{children}</div>
+  </section>
+);
+
+const InfoTile = ({ label, value }) => (
+  <div className="rounded-lg border border-slate-100 bg-white p-3">
+    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+    <p className="mt-1 text-sm font-semibold text-slate-800">{value || "-"}</p>
+  </div>
+);
+
 const PatientCard = ({ patient }) => {
   if (!patient) {
     return (
@@ -87,17 +131,17 @@ const PatientCard = ({ patient }) => {
     );
   }
 
-  const rows = [
-    ["UHID", patient.uhid],
-    ["Mobile", patient.phone],
-    ["Email", patient.email],
-    ["Gender", patient.gender],
-    ["DOB", patient.dob ? new Date(patient.dob).toLocaleDateString("en-IN") : "-"],
-    ["Blood Group", patient.bloodGroup],
-    ["Address", [patient.address, patient.city, patient.state].filter(Boolean).join(", ")],
-    ["Allergies", patient.allergies],
-    ["Emergency Contact", [patient.emergencyContactName, patient.emergencyContactPhone].filter(Boolean).join(" - ")],
-  ];
+  const address = [patient.address, patient.city, patient.state].filter(Boolean).join(", ");
+  const emergency = [
+    patient.emergencyContactName,
+    patient.emergencyContactPhone,
+    patient.emergencyContactRelation,
+  ].filter(Boolean).join(" - ");
+  const registeredOn = formatDate(patient.registeredAt || patient.createdAt, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 
   return (
     <div className="card overflow-hidden">
@@ -110,24 +154,30 @@ const PatientCard = ({ patient }) => {
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Patient Details</p>
               <h2 className="mt-1 text-2xl font-extrabold text-slate-900">{patient.name}</h2>
-              <p className="mt-1 text-sm text-slate-500">Registered {patient.registeredAt ? new Date(patient.registeredAt).toLocaleString("en-IN") : "-"}</p>
+              <p className="mt-1 text-sm text-slate-500">UHID {patient.uhid || "-"} · Registered {registeredOn}</p>
             </div>
           </div>
           <Badge variant={(patient.status || "").toLowerCase() === "active" ? "success" : "default"}>{patient.status || "Active"}</Badge>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-5">
-        {rows.map(([label, value]) => (
-          <div key={label} className="rounded-lg border border-slate-100 p-3">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
-            <p className="mt-1 text-sm font-semibold text-slate-800">{value || "-"}</p>
-          </div>
-        ))}
-      </div>
-      <div className="border-t border-slate-100 p-5">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Remarks</p>
-        <p className="mt-2 text-sm text-slate-700">{patient.remarks || "No remarks recorded."}</p>
-      </div>
+      <Section title="Identity">
+        <InfoTile label="Patient ID" value={patient.patientId || patient.id} />
+        <InfoTile label="UHID" value={patient.uhid} />
+        <InfoTile label="Gender" value={patient.gender} />
+        <InfoTile label="Age" value={calculateAge(patient)} />
+      </Section>
+      <Section title="Contact">
+        <InfoTile label="Mobile" value={patient.phone || patient.mobile || patient.mobileNumber} />
+        <InfoTile label="Email" value={patient.email} />
+        <InfoTile label="Address" value={address} />
+        <InfoTile label="Emergency Contact" value={emergency} />
+      </Section>
+      <Section title="Medical">
+        <InfoTile label="DOB" value={formatDate(patient.dob || patient.dateOfBirth || patient.date_of_birth)} />
+        <InfoTile label="Blood Group" value={patient.bloodGroup} />
+        <InfoTile label="Allergies" value={patient.allergies || patient.knownAllergies} />
+        <InfoTile label="Remarks" value={patient.remarks || "No remarks recorded."} />
+      </Section>
     </div>
   );
 };
@@ -137,10 +187,14 @@ const PatientScanner = () => {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [error, setError] = useState("");
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const animationRef = useRef(null);
+  const detectedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,6 +214,7 @@ const PatientScanner = () => {
   }, []);
 
   useEffect(() => () => {
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
     streamRef.current?.getTracks?.().forEach((track) => track.stop());
   }, []);
 
@@ -169,7 +224,28 @@ const PatientScanner = () => {
     return patients.filter((patient) => patientSearchValues(patient).some((value) => value.includes(q))).slice(0, 12);
   }, [patients, query]);
 
-  const selectFromCode = (code) => {
+  const openPatient = async (patient) => {
+    setSelected(patient);
+    setQuery(patient.uhid || patient.patientId || patient.id);
+    setError("");
+    if (!patient?.id) return;
+    setDetailLoading(true);
+    try {
+      const fullPatient = unwrapSingle(await apiClient.get(`/patient/${patient.id}`));
+      if (fullPatient?.id) {
+        setSelected((current) => ({ ...current, ...fullPatient }));
+        setPatients((current) => current.map((item) => (
+          String(item.id) === String(fullPatient.id) ? { ...item, ...fullPatient } : item
+        )));
+      }
+    } catch {
+      // The list record is still useful if detail loading fails.
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const selectFromCode = async (code) => {
     const values = extractScanValues(code);
     const queries = values.map(normalize).filter(Boolean);
     if (!queries.length) {
@@ -181,9 +257,7 @@ const PatientScanner = () => {
       return queries.some((q) => searchValues.some((value) => value === q || value.includes(q) || q.includes(value)));
     });
     if (match) {
-      setSelected(match);
-      setQuery(match.uhid || match.id);
-      setError("");
+      await openPatient(match);
     } else {
       setError("No patient found for scanned code.");
     }
@@ -191,30 +265,48 @@ const PatientScanner = () => {
 
   const startCamera = async () => {
     setError("");
-    if (!("BarcodeDetector" in window)) {
-      setError("Camera QR scan is not available in this browser. Scan with a USB/mobile scanner or type UHID/mobile below.");
-      return;
-    }
+    detectedRef.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       streamRef.current = stream;
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
       setCameraActive(true);
-      const detector = new window.BarcodeDetector({ formats: ["qr_code", "code_128", "ean_13"] });
+      const detector = "BarcodeDetector" in window
+        ? new window.BarcodeDetector({ formats: ["qr_code", "code_128", "ean_13"] })
+        : null;
       const tick = async () => {
-        if (!videoRef.current || !streamRef.current) return;
+        const video = videoRef.current;
+        if (!video || !streamRef.current || detectedRef.current) return;
         try {
-          const codes = await detector.detect(videoRef.current);
+          const codes = detector ? await detector.detect(video) : [];
           if (codes?.[0]?.rawValue) {
-            selectFromCode(codes[0].rawValue);
+            detectedRef.current = true;
+            await selectFromCode(codes[0].rawValue);
             stopCamera();
             return;
           }
         } catch {
           // Continue scanning while the video settles.
         }
-        requestAnimationFrame(tick);
+
+        const canvas = canvasRef.current;
+        if (canvas && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth && video.videoHeight) {
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const result = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+          if (result?.data) {
+            detectedRef.current = true;
+            await selectFromCode(result.data);
+            stopCamera();
+            return;
+          }
+        }
+
+        animationRef.current = requestAnimationFrame(tick);
       };
       tick();
     } catch (err) {
@@ -223,6 +315,8 @@ const PatientScanner = () => {
   };
 
   const stopCamera = () => {
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    animationRef.current = null;
     streamRef.current?.getTracks?.().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraActive(false);
@@ -276,6 +370,7 @@ const PatientScanner = () => {
             {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
             <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-slate-950">
               <video ref={videoRef} className={`aspect-video w-full object-cover ${cameraActive ? "block" : "hidden"}`} muted playsInline />
+              <canvas ref={canvasRef} className="hidden" />
               {!cameraActive && (
                 <div className="flex aspect-video items-center justify-center text-center text-slate-400">
                   <div>
@@ -293,7 +388,7 @@ const PatientScanner = () => {
             </div>
             <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100">
               {matches.map((patient) => (
-                <button key={patient.id} onClick={() => setSelected(patient)} className="w-full px-4 py-3 text-left hover:bg-slate-50">
+                <button key={patient.id} onClick={() => openPatient(patient)} className="w-full px-4 py-3 text-left hover:bg-slate-50">
                   <p className="text-sm font-bold text-slate-800">{patient.name}</p>
                   <p className="mt-1 text-xs text-slate-400">{patient.uhid || patient.id} · {patient.phone || "-"}</p>
                 </button>
@@ -310,7 +405,14 @@ const PatientScanner = () => {
           </div>
         </section>
 
-        <PatientCard patient={selected} />
+        <div className="relative">
+          {detailLoading && (
+            <div className="absolute right-4 top-4 z-10 rounded-lg border border-teal-100 bg-white px-3 py-2 text-xs font-bold text-teal-700 shadow-sm">
+              Loading full details...
+            </div>
+          )}
+          <PatientCard patient={selected} />
+        </div>
       </div>
     </div>
   );
