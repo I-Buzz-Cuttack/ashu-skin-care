@@ -145,7 +145,7 @@ const LoginPage = () => {
             <ShieldCheck size={16} className="text-primary-300" />
             <span>JWT Encrypted Role-Based Security</span>
           </div>
-          <span>© 2026 Ashu Skin Care</span>
+          <span>Developed by I BUZZ Technologies</span>
         </div>
       </section>
 
