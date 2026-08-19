@@ -21,7 +21,7 @@ import { usePatients } from './hooks/usePatients';
 import {
   exportPatientsToXlsx,
 } from './utils/patient.export';
-import { formatPatientId, formatPatientAge } from './utils/patient.utils';
+import { formatPatientAge } from './utils/patient.utils';
 
 /* ── Static filter options ─────────────────────────────────── */
 const GENDER_OPTIONS = [
@@ -59,35 +59,14 @@ const EMPTY_FILTERS = {
 };
 
 /* ── Column config ─────────────────────────────────────────── */
-const buildColumns = (onView, onEdit, onDelete, rowOffset) => [
-  {
-    key:   'serial',
-    label: '#',
-    width: '52px',
-    render: (_v, _row, index) => (
-      <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">
-        {rowOffset + index + 1}
-      </span>
-    ),
-  },
+const buildColumns = (onView, onEdit, onDelete) => [
   {
     key:      'patientId',
     label:    'Patient ID',
     sortable: true,
     render: (_v, row, index) => (
       <span className="text-xs font-mono font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-2 py-0.5 rounded-md whitespace-nowrap">
-        {formatPatientId(row.patientId ?? row.id, index)}
-      </span>
-    ),
-  },
-  {
-    key:          'uhid',
-    label:        'UHID',
-    sortable:     true,
-    mobileHidden: true,
-    render: (_v, row) => (
-      <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-        {row.uhid ?? '—'}
+        {row.patientId ?? row.id ?? `PAT${String(index + 1).padStart(3, '0')}`}
       </span>
     ),
   },
@@ -331,18 +310,6 @@ const { can } = usePermission();
   row => navigate(ROUTES.SUPER_ADMIN.PATIENT_EDIT.replace(':id', row.id)),
   row => deleteModal.open([row.id]),
 ), [navigate, deleteModal]);
-
-  const rowOffset = (page - 1) * limit;
-  const columnsWithOffset = useMemo(() => columns.map(col =>
-    col.key !== 'serial' ? col : {
-      ...col,
-      render: (_v, _row, idx) => (
-        <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">
-          {rowOffset + idx + 1}
-        </span>
-      ),
-    }
-  ), [columns, rowOffset]);
 
   /* ── Toolbar ── */
   const toolbarLeft = selectedIds.length > 0 && (
