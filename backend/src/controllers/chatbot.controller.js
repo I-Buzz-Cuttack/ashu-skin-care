@@ -1,5 +1,6 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { generateChatReply } from "../services/geminiChat.service.js";
+import { detectPendingAction, executePendingAction } from "../services/chatbotAction.service.js";
 
 const friendlyError = (err) => {
   const message = String(err?.message || "").toLowerCase();
@@ -25,9 +26,30 @@ const friendlyError = (err) => {
 
 export const chat = asyncHandler(async (req, res) => {
   try {
+    const actionResult = req.body?.pendingAction
+      ? await executePendingAction({
+          user: req.user,
+          message: req.body?.message,
+          pendingAction: req.body?.pendingAction,
+        })
+      : await detectPendingAction({
+          user: req.user,
+          message: req.body?.message,
+        });
+
+    if (actionResult?.handled) {
+      return res.json({
+        success: true,
+        reply: actionResult.reply,
+        pendingAction: actionResult.pendingAction || null,
+        clearPendingAction: Boolean(actionResult.clearPendingAction),
+      });
+    }
+
     const reply = await generateChatReply({
       message: req.body?.message,
       history: req.body?.history,
+      user: req.user,
     });
 
     return res.json({ success: true, reply });
@@ -37,7 +59,7 @@ export const chat = asyncHandler(async (req, res) => {
       message: err?.message,
     });
 
-    const status = err.status && err.status < 500 ? err.status : 502;
+    const status = err.status === 400 ? 400 : 502;
     return res.status(status).json({
       success: false,
       message: friendlyError(err),
