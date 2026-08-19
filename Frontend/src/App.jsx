@@ -22,7 +22,11 @@ import {
   Receipt,
   Tags,
   Plus,
-  BedDouble
+  BedDouble,
+  UserCog,
+  KeyRound,
+  Mail,
+  Phone,
 } from "lucide-react";
 import { clearAuth, selectCurrentUser, selectIsAuthenticated } from "./store/slices/authSlice";
 import apiClient from "./api/apiClient";
@@ -52,6 +56,8 @@ const NAV_ITEMS = [
   { to: "/super-admin/doctors", label: "Doctor Master", icon: Stethoscope },
   { to: "/super-admin/patients", label: "Patient Directory", icon: Users },
   { to: "/super-admin/ipd", label: "IPD", icon: BedDouble },
+  { to: "/super-admin/members", label: "Members", icon: UserCog },
+  { to: "/super-admin/permissions", label: "Permissions", icon: KeyRound },
 ];
 
 const OPD_SUB_ITEMS = [
@@ -299,6 +305,122 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+const unwrapList = (response) => {
+  const body = response?.data;
+  const result = body?.result ?? body?.data ?? body;
+  const data = result?.data ?? result?.records ?? result;
+  return Array.isArray(data) ? data : [];
+};
+
+function MembersPage() {
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadMembers = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const response = await apiClient.get("/user", { params: { page: 1, limit: 1000 } });
+        if (!cancelled) setMembers(unwrapList(response));
+      } catch (err) {
+        if (!cancelled) setError(err?.response?.data?.message || "Unable to load members.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadMembers();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <div className="page-container">
+      <div className="mb-6">
+        <p className="text-xs font-bold uppercase tracking-widest text-primary-600">Super Admin</p>
+        <h1 className="mt-2 text-3xl font-extrabold text-surface-900">Members</h1>
+        <p className="mt-1 text-sm text-surface-500">Manage staff accounts and prepare member access control.</p>
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="border-b border-surface-100 px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-extrabold text-surface-900">Staff Members</p>
+            <p className="text-xs text-surface-400">{loading ? "Loading..." : `${members.length} member${members.length === 1 ? "" : "s"}`}</p>
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-lg bg-primary-50 px-3 py-1 text-xs font-bold text-primary-700">
+            <UserCog size={14} /> Members
+          </span>
+        </div>
+
+        {error && <div className="m-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+
+        <div className="divide-y divide-surface-100">
+          {!loading && members.map((member) => (
+            <div key={member.id} className="grid grid-cols-1 gap-3 px-5 py-4 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-center">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary-400 to-surface-700 text-white flex items-center justify-center text-sm font-bold">
+                  {(member.name || "?").charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-bold text-surface-900">{member.name || "-"}</p>
+                  <p className="text-xs text-surface-400">{member.role || "Member"}</p>
+                </div>
+              </div>
+              <p className="flex items-center gap-2 text-sm text-surface-600"><Mail size={14} /> {member.email || "-"}</p>
+              <p className="flex items-center gap-2 text-sm text-surface-600"><Phone size={14} /> {member.phone || "-"}</p>
+              <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${member.isActive === false ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
+                {member.isActive === false ? "Inactive" : "Active"}
+              </span>
+            </div>
+          ))}
+          {loading && <div className="p-12 text-center text-sm text-surface-400">Loading members...</div>}
+          {!loading && !members.length && !error && <div className="p-12 text-center text-sm text-surface-400">No members found.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PermissionsPage() {
+  const sections = [
+    "Dashboard", "OPD Console", "Doctor Master", "Patient Directory", "IPD",
+    "Members", "Permissions", "Patient Scanner", "E-Prescription", "Billing",
+  ];
+
+  return (
+    <div className="page-container">
+      <div className="mb-6">
+        <p className="text-xs font-bold uppercase tracking-widest text-primary-600">Super Admin</p>
+        <h1 className="mt-2 text-3xl font-extrabold text-surface-900">Permissions</h1>
+        <p className="mt-1 text-sm text-surface-500">Super Admin currently has full website access.</p>
+      </div>
+
+      <div className="card p-5">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+          <div className="flex items-center gap-3">
+            <ShieldCheck size={22} />
+            <div>
+              <p className="font-extrabold">Full Access Enabled</p>
+              <p className="text-sm">Super Admin can view and work on every available section.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {sections.map((section) => (
+            <div key={section} className="flex items-center justify-between rounded-lg border border-surface-100 p-4">
+              <span className="text-sm font-bold text-surface-800">{section}</span>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Allowed</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppShell() {
   return (
     <div className="min-h-screen app-shell-bg flex flex-col">
@@ -321,6 +443,8 @@ function AppShell() {
 
           <Route path="/super-admin/ipd" element={<IPDConvertedPage />} />
           <Route path="/super-admin/ipd/admitted-patients" element={<IPDConvertedPage />} />
+          <Route path="/super-admin/members" element={<MembersPage />} />
+          <Route path="/super-admin/permissions" element={<PermissionsPage />} />
           <Route path="/super-admin/patients" element={<PatientsPage />} />
           <Route path="/super-admin/patients/create" element={<CreatePatientPage />} />
           <Route path="/super-admin/patients/:id" element={<ViewPatientPage />} />
