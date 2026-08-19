@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { clearAuth, selectCurrentUser, selectIsAuthenticated } from "./store/slices/authSlice";
 import apiClient from "./api/apiClient";
+import ChatbotWidget from "./components/chatbot/ChatbotWidget.jsx";
 
 import LoginPage from "./pages/auth/LoginPage.jsx";
 import DashboardPage from "./pages/super-admin/dashboard/DashboardPage.jsx";
@@ -638,6 +639,7 @@ function AppShell() {
           <Route path="*" element={<Navigate to="/super-admin/dashboard" replace />} />
         </Routes>
       </main>
+      <ChatbotWidget />
     </div>
   );
 }
