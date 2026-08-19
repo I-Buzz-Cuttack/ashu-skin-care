@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -24,6 +24,8 @@ const unwrapAuth = (response) => {
   return body?.result ?? body?.data ?? body;
 };
 
+const formatCount = (value) => String(Number(value || 0)).padStart(2, "0");
+
 const LoginPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -33,7 +35,32 @@ const LoginPage = () => {
     password: "superadmin@123",
   });
   const [loading, setLoading] = useState(false);
+  const [queueStats, setQueueStats] = useState({
+    appointments: 0,
+    consulting: 0,
+    registeredPatients: 0,
+  });
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadQueueStats = async () => {
+      try {
+        const data = unwrapAuth(await apiClient.get("/public/login-stats"));
+        if (!cancelled) {
+          setQueueStats({
+            appointments: data?.appointments ?? 0,
+            consulting: data?.consulting ?? 0,
+            registeredPatients: data?.registeredPatients ?? 0,
+          });
+        }
+      } catch {
+        // Keep zeroes if the public status endpoint is unavailable.
+      }
+    };
+    loadQueueStats();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -111,9 +138,9 @@ const LoginPage = () => {
 
             <div className="grid grid-cols-3 divide-x divide-white/10">
               {[
-                [CalendarDays, "42", "Appointments", "text-primary-300"],
-                [Stethoscope, "08", "Consulting", "text-emerald-300"],
-                [Users, "124", "Registered Patients", "text-amber-200"],
+                [CalendarDays, formatCount(queueStats.appointments), "Appointments", "text-primary-300"],
+                [Stethoscope, formatCount(queueStats.consulting), "Consulting", "text-emerald-300"],
+                [Users, formatCount(queueStats.registeredPatients), "Registered Patients", "text-amber-200"],
               ].map(([Icon, value, label, color]) => (
                 <div key={label} className="p-6 transition-colors hover:bg-white/5">
                   <Icon size={22} className={color} />
