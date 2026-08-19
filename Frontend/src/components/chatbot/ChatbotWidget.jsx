@@ -4,7 +4,7 @@ import { sendChatbotMessage } from "../../api/chatbotAPI";
 
 const INITIAL_MESSAGE = {
   role: "assistant",
-  content: "Hi, I am your AI assistant. Ask me anything about the clinic system.",
+  content: "Welcome to Ashu Skin Care. I am here to help you with the website, clinic workflow, patients, OPD, prescriptions, or general questions. How can I help you today?",
 };
 
 const getErrorMessage = (error) => {
@@ -20,7 +20,7 @@ const getErrorMessage = (error) => {
 };
 
 function ChatbotWidget() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [messages, setMessages] = useState([INITIAL_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
