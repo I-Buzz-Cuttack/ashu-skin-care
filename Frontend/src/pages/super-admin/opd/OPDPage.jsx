@@ -386,32 +386,17 @@ const escapePrintHTML = (value, fallback = "-") => {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 };
 
-const buildPatientQRHTML = (seed) => {
-  const numericSeed = String(seed ?? "").split("").reduce(
-    (sum, ch) => (Math.imul(31, sum) + ch.charCodeAt(0)) | 0, 0,
-  );
-  const size = 21; const cell = 5;
-  let rv = numericSeed * 6364136 + 1442695;
-  const random = () => { rv = (1664525 * rv + 1013904223) & 0xffffffff; return (rv >>> 0) / 0xffffffff; };
-  const grid = Array.from({ length: size }, () => Array(size).fill(false));
-  const fill = (r, c, h, w, v = true) => {
-    for (let i = r; i < r + h; i++) for (let j = c; j < c + w; j++) if (i < size && j < size) grid[i][j] = v;
-  };
-  const finder = (r, c) => { fill(r, c, 7, 7); fill(r+1, c+1, 5, 5, false); fill(r+2, c+2, 3, 3); };
-  finder(0, 0); finder(0, size-7); finder(size-7, 0);
-  for (let i = 8; i < size - 8; i++) { grid[6][i] = i % 2 === 0; grid[i][6] = i % 2 === 0; }
-  fill(14, 14, 5, 5); fill(15, 15, 3, 3, false); grid[16][16] = true; grid[8][size-8] = true;
-  const reserved = (r, c) =>
-    (r < 9 && c < 9) || (r < 9 && c >= size-8) || (r >= size-8 && c < 9) ||
-    r === 6 || c === 6 || (r >= 14 && r <= 18 && c >= 14 && c <= 18) || (r === 8 && c === size-8);
-  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (!reserved(r, c)) grid[r][c] = random() > 0.48;
-  const cells = grid.flatMap((line, r) => line.map((filled, c) =>
-    filled ? `<rect x="${c*cell}" y="${r*cell}" width="${cell}" height="${cell}"/>` : "",
-  )).join("");
-  const dim = size * cell;
-  return `<svg width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}">
-    <rect width="${dim}" height="${dim}" fill="#fff"/>
-    <g fill="#1a1a1a">${cells}</g></svg>`;
+const buildPatientQrPayload = (row, printableUhid = row?.uhid) => JSON.stringify({
+  type: "patient",
+  patientId: row?.patientId || row?.apiRecord?.patientId || row?.id || "",
+  uhid: printableUhid || row?.uhid || "",
+  phone: row?.phone || "",
+});
+
+const buildPatientQRHTML = (row, printableUhid) => {
+  const payload = encodeURIComponent(buildPatientQrPayload(row, printableUhid));
+  const src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=16&ecc=H&data=${payload}`;
+  return `<img src="${src}" alt="Patient QR Code">`;
 };
 
 const buildA4PatientCardHTML = (row) => {
@@ -508,9 +493,9 @@ const buildA4PatientCardHTML = (row) => {
     html,body{margin:0;min-height:100%;font-family:Arial,sans-serif;color:#262626}body{background:#d9dde3}
     .sheet{width:210mm;height:297mm;margin:12px auto;padding:10mm 10mm 8mm;background:#fff;
       box-shadow:0 1px 12px rgba(0,0,0,.18);display:flex;flex-direction:column;overflow:hidden;font-size:10px}
-    .top{display:grid;grid-template-columns:27mm 1fr 38mm;gap:6px;align-items:center;padding-bottom:6px}
-    .patient-qr{width:27mm;height:27mm;padding:1.5mm;border:1px solid #777;background:#fff;display:grid;place-items:center}
-    .patient-qr svg{display:block;width:24mm;height:24mm}
+    .top{display:grid;grid-template-columns:30mm 1fr 38mm;gap:6px;align-items:center;padding-bottom:6px}
+    .patient-qr{width:30mm;height:30mm;padding:1.5mm;border:1px solid #777;background:#fff;display:grid;place-items:center}
+    .patient-qr img{display:block;width:27mm;height:27mm;object-fit:contain}
     .hospital{text-align:center}.hospital h1{margin:0 0 3px;font-size:14px;text-transform:uppercase}
     .hospital p{margin:1px 0;font-size:9px}.card-title{font-weight:bold;font-size:11px;text-transform:uppercase;margin-top:4px}
     .card-no{text-align:right;line-height:1.6;font-size:9px}.card-no strong{display:block;font-size:11px}
@@ -537,7 +522,7 @@ const buildA4PatientCardHTML = (row) => {
   </style></head><body>
   <main class="sheet">
     <header class="top">
-      <div class="patient-qr">${buildPatientQRHTML(row.patientId || row.uhid)}</div>
+      <div class="patient-qr">${buildPatientQRHTML(row, printableUhid)}</div>
       <div class="hospital">
         <h1>Ashu Skin Care</h1>
         <p>Department of Health and Family Welfare</p>
@@ -626,18 +611,8 @@ const buildPrescriptionHTML = (row) => {
     rx?.findingDesc,
   ].filter(Boolean).join(" | ");
   const generatedAt = new Date().toLocaleString("en-IN");
-  const qrPayload = encodeURIComponent([
-    `Patient: ${row.patientName || "-"}`,
-    `UHID: ${printableUhid || row.uhid || "-"}`,
-    `Gender: ${row.gender || "-"}`,
-    `Age: ${row.age || "-"}`,
-    `Phone: ${row.phone || "-"}`,
-    `Token: ${printableToken || row.token || "-"}`,
-    `Visit: ${row.date || "-"}`,
-    `Doctor: ${row.doctor || "-"}`,
-    `Department: ${department || "-"}`,
-  ].join("\n"));
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${qrPayload}`;
+  const qrPayload = encodeURIComponent(buildPatientQrPayload(row, printableUhid));
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=16&ecc=H&data=${qrPayload}`;
   const radiologyHTML = radiologyText.length
     ? radiologyText.map((item) => `• ${escapePrintHTML(item)}`).join("<br>")
     : "";
@@ -661,7 +636,7 @@ const buildPrescriptionHTML = (row) => {
     .header-left{width:122px;text-align:center}.logo-circle{width:78px;height:78px;border-radius:50%;border:3px solid #b71540;background:#fff;display:block;overflow:hidden;margin:0 auto 3px;box-shadow:0 1px 4px rgba(0,0,0,.2)}.logo-circle img{width:100%;height:100%;object-fit:cover;display:block}
     .header-center{text-align:center;flex:1;padding:0 6px}.header-center h1{font-size:24px;font-weight:900;color:#b71540;letter-spacing:.5px}.header-center h4{font-size:11px;font-weight:bold;color:#222;margin-top:2px;font-style:italic}
     .badge-container{display:flex;justify-content:center;gap:5px;margin-top:5px}.badge-pill{background:#d81b60;color:#fff;font-size:9px;font-weight:bold;padding:2px 7px;border-radius:3px;text-transform:uppercase}
-    .header-right{width:112px;text-align:center}.qr-box{width:82px;height:82px;border:1px solid #333;margin:0 auto;display:flex;align-items:center;justify-content:center;background:#fff;padding:4px}.qr-box img{width:100%;height:100%;object-fit:contain;display:block}
+    .header-right{width:122px;text-align:center}.qr-box{width:96px;height:96px;border:1px solid #333;margin:0 auto;display:flex;align-items:center;justify-content:center;background:#fff;padding:4px}.qr-box img{width:100%;height:100%;object-fit:contain;display:block}
     .content-body{display:flex;flex:1}.sidebar{width:32%;background:#fff;border-right:2px solid #b71540;padding:8px 7px;display:flex;flex-direction:column}
     .left-box{border:1.4px solid #d81b60;margin-bottom:7px;padding:7px}
     .doc-name{color:#d81b60;font-size:15px;font-weight:900;padding-bottom:3px;margin-bottom:4px}.doc-specs{font-size:10px;line-height:1.28;color:#25314f;font-weight:800;margin-bottom:2px}.doc-specs strong{color:#25314f}

@@ -15,32 +15,64 @@ const unwrapList = (response) => {
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
 
-const extractScanValue = (value) => {
+const scanObjectValues = (payload) => [
+  payload?.patientId,
+  payload?.patient_id,
+  payload?.id,
+  payload?.uhid,
+  payload?.UHID,
+  payload?.phone,
+  payload?.mobile,
+  payload?.mobileNumber,
+].map((item) => String(item || "").trim()).filter(Boolean);
+
+const extractScanValues = (value) => {
   const raw = String(value || "").trim();
-  if (!raw) return "";
+  if (!raw) return [];
 
   try {
     const parsed = JSON.parse(raw);
-    return parsed.uhid || parsed.patientId || parsed.id || parsed.phone || raw;
+    const values = scanObjectValues(parsed);
+    return values.length ? values : [raw];
   } catch {
     // Scanner payload is often plain text or a URL, so fall through.
   }
 
   try {
     const url = new URL(raw);
-    return url.searchParams.get("uhid") || url.searchParams.get("patientId") || url.searchParams.get("id") || url.pathname.split("/").filter(Boolean).pop() || raw;
+    const values = [
+      url.searchParams.get("patientId"),
+      url.searchParams.get("id"),
+      url.searchParams.get("uhid"),
+      url.searchParams.get("phone"),
+      url.searchParams.get("mobile"),
+      url.pathname.split("/").filter(Boolean).pop(),
+    ].map((item) => String(item || "").trim()).filter(Boolean);
+    return values.length ? values : [raw];
   } catch {
-    return raw;
+    const labeledValues = [];
+    const labelPattern = /\b(?:patient\s*id|patientid|id|uhid|mobile|phone|contact)\s*(?:no\.?|number)?\s*[:#-]\s*([^\n\r,|]+)/gi;
+    let match = labelPattern.exec(raw);
+    while (match) {
+      labeledValues.push(match[1].trim());
+      match = labelPattern.exec(raw);
+    }
+    return [...labeledValues, raw];
   }
 };
 
 const patientSearchValues = (patient) => [
   patient.id,
+  patient.patientId,
   patient.uhid,
   patient.name,
   patient.phone,
+  patient.mobile,
+  patient.mobileNumber,
+  patient.alternateNumber,
   patient.email,
   patient.adharNo,
+  patient.nationalId,
 ].map(normalize).filter(Boolean);
 const PatientCard = ({ patient }) => {
   if (!patient) {
@@ -138,12 +170,16 @@ const PatientScanner = () => {
   }, [patients, query]);
 
   const selectFromCode = (code) => {
-    const q = normalize(extractScanValue(code));
-    if (!q) {
+    const values = extractScanValues(code);
+    const queries = values.map(normalize).filter(Boolean);
+    if (!queries.length) {
       setError("Enter or scan a UHID, mobile number, or Patient ID.");
       return;
     }
-    const match = patients.find((patient) => patientSearchValues(patient).some((value) => value === q || value.includes(q) || q.includes(value)));
+    const match = patients.find((patient) => {
+      const searchValues = patientSearchValues(patient);
+      return queries.some((q) => searchValues.some((value) => value === q || value.includes(q) || q.includes(value)));
+    });
     if (match) {
       setSelected(match);
       setQuery(match.uhid || match.id);
@@ -220,7 +256,10 @@ const PatientScanner = () => {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onPaste={(e) => setTimeout(() => selectFromCode(e.target.value), 0)}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData?.getData("text");
+                  setTimeout(() => selectFromCode(pasted || e.target.value), 0);
+                }}
                 onKeyDown={(e) => { if (e.key === "Enter") selectFromCode(query); }}
                 placeholder="Scan or type UHID / mobile / Patient ID"
                 className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-10 text-sm outline-none focus:border-[#0f766e] focus:ring-3 focus:ring-teal-100"
