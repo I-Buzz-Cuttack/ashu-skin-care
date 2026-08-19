@@ -32,8 +32,32 @@ export const permissionApi = baseApi.injectEndpoints({
 
     getMyEffectivePermissions: builder.query({
       query: () => ({ url: '/permission/me/effective' }),
-      transformResponse: (res) => res?.result ?? res,
+      transformResponse: (res) => res?.result?.data ?? res?.result ?? res,
       providesTags: [{ type: 'Permission', id: 'me-effective' }],
+    }),
+
+    getPermissionCatalog: builder.query({
+      query: () => ({ url: '/permission/catalog' }),
+      transformResponse: (res) => res?.result?.data ?? res?.result ?? res,
+      providesTags: [{ type: 'Permission', id: 'CATALOG' }],
+    }),
+
+    getUserEffectivePermissions: builder.query({
+      query: (userId) => ({ url: `/permission/user/${userId}` }),
+      transformResponse: (res) => res?.result?.data ?? res?.result ?? res,
+      providesTags: (_, __, userId) => [{ type: 'Permission', id: `user-${userId}` }],
+    }),
+
+    updateUserPermissions: builder.mutation({
+      query: ({ userId, permissions }) => ({
+        url: `/permission/user/${userId}`,
+        method: 'PUT',
+        body: { permissions },
+      }),
+      invalidatesTags: (_, __, { userId }) => [
+        { type: 'Permission', id: `user-${userId}` },
+        { type: 'Permission', id: 'me-effective' },
+      ],
     }),
 
   }),
@@ -45,4 +69,7 @@ export const {
   useGetRolePermissionsQuery,
   useSyncRolePermissionsMutation,
   useGetMyEffectivePermissionsQuery,
+  useGetPermissionCatalogQuery,
+  useGetUserEffectivePermissionsQuery,
+  useUpdateUserPermissionsMutation,
 } = permissionApi;

@@ -384,20 +384,128 @@ function MembersPage() {
 }
 
 function PermissionsPage() {
-  const sections = [
-    "Dashboard", "OPD Console", "Doctor Master", "Patient Directory", "IPD",
-    "Members", "Permissions", "Patient Scanner", "E-Prescription", "Billing",
-  ];
+  const [members, setMembers] = useState([]);
+  const [catalog, setCatalog] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedPermissions, setSelectedPermissions] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const selectedMember = members.find((member) => member.id === selectedUserId);
+  const selectedIsSuperAdmin = String(selectedMember?.role || "").toUpperCase().replace(/[\s-]+/g, "_") === "SUPER_ADMIN";
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [memberRes, catalogRes] = await Promise.all([
+          apiClient.get("/user", { params: { page: 1, limit: 1000 } }),
+          apiClient.get("/permission/catalog"),
+        ]);
+        const nextMembers = unwrapList(memberRes);
+        const nextCatalog = unwrapList(catalogRes);
+        if (!cancelled) {
+          setMembers(nextMembers);
+          setCatalog(nextCatalog);
+          setSelectedUserId(nextMembers.find((member) => String(member.role).toUpperCase() !== "SUPER_ADMIN")?.id || nextMembers[0]?.id || "");
+        }
+      } catch (err) {
+        if (!cancelled) setError(err?.response?.data?.message || "Unable to load permission settings.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedUserId) return;
+    let cancelled = false;
+    const loadPermissions = async () => {
+      setMessage("");
+      setError("");
+      try {
+        const permissions = unwrapList(await apiClient.get(`/permission/user/${selectedUserId}`));
+        if (!cancelled) {
+          setSelectedPermissions(new Set(
+            permissions
+              .filter((permission) => permission.resource !== "*" && permission.action !== "*")
+              .map((permission) => `${permission.resource}:${permission.action}`),
+          ));
+        }
+      } catch (err) {
+        if (!cancelled) setError(err?.response?.data?.message || "Unable to load member permissions.");
+      }
+    };
+    loadPermissions();
+    return () => { cancelled = true; };
+  }, [selectedUserId]);
+
+  const togglePermission = (resource, action) => {
+    const key = `${resource}:${action}`;
+    setSelectedPermissions((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleModule = (module) => {
+    const keys = module.actions.map((action) => `${module.resource}:${action}`);
+    const allSelected = keys.every((key) => selectedPermissions.has(key));
+    setSelectedPermissions((current) => {
+      const next = new Set(current);
+      keys.forEach((key) => {
+        if (allSelected) next.delete(key);
+        else next.add(key);
+      });
+      return next;
+    });
+  };
+
+  const savePermissions = async () => {
+    if (!selectedUserId || selectedIsSuperAdmin) return;
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      const permissions = Array.from(selectedPermissions).map((key) => {
+        const [resource, action] = key.split(":");
+        return { resource, action };
+      });
+      await apiClient.put(`/permission/user/${selectedUserId}`, { permissions });
+      setMessage("Permissions saved. Ask this member to log out and log in again if they are currently online.");
+    } catch (err) {
+      setError(err?.response?.data?.message || "Unable to save permissions.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const actionLabel = (action) => ({
+    read: "View",
+    create: "Add",
+    update: "Edit",
+    delete: "Delete",
+    print: "Print",
+    export: "Export",
+  }[action] || action);
 
   return (
     <div className="page-container">
       <div className="mb-6">
         <p className="text-xs font-bold uppercase tracking-widest text-primary-600">Super Admin</p>
         <h1 className="mt-2 text-3xl font-extrabold text-surface-900">Permissions</h1>
-        <p className="mt-1 text-sm text-surface-500">Super Admin currently has full website access.</p>
+        <p className="mt-1 text-sm text-surface-500">Choose a member and control which parts of the website they can use.</p>
       </div>
 
-      <div className="card p-5">
+      <div className="card p-5 space-y-5">
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
           <div className="flex items-center gap-3">
             <ShieldCheck size={22} />
@@ -408,13 +516,90 @@ function PermissionsPage() {
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {sections.map((section) => (
-            <div key={section} className="flex items-center justify-between rounded-lg border border-surface-100 p-4">
-              <span className="text-sm font-bold text-surface-800">{section}</span>
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Allowed</span>
+        {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
+          <section className="rounded-xl border border-surface-100 p-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-surface-400">Select Member</p>
+            <select
+              value={selectedUserId}
+              onChange={(event) => setSelectedUserId(event.target.value)}
+              disabled={loading}
+              className="mt-3 h-11 w-full rounded-lg border border-surface-200 bg-white px-3 text-sm font-semibold outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10"
+            >
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name || member.email} - {member.role}
+                </option>
+              ))}
+            </select>
+            <div className="mt-4 rounded-lg bg-surface-50 p-3 text-sm text-surface-600">
+              <p className="font-bold text-surface-900">{selectedMember?.name || "No member selected"}</p>
+              <p className="mt-1">{selectedMember?.email || "-"}</p>
+              <p className="mt-1 text-xs font-bold uppercase text-primary-700">{selectedMember?.role || "-"}</p>
             </div>
-          ))}
+            {selectedIsSuperAdmin && (
+              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                Super Admin always has full access. Select another member to assign permissions.
+              </p>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-surface-100 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-surface-400">Access Control</p>
+                <h2 className="mt-1 text-lg font-extrabold text-surface-900">Website Sections</h2>
+              </div>
+              <button
+                type="button"
+                onClick={savePermissions}
+                disabled={!selectedUserId || selectedIsSuperAdmin || saving}
+                className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Permissions"}
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+              {catalog.map((module) => {
+                const allSelected = module.actions?.every((action) => selectedPermissions.has(`${module.resource}:${action}`));
+                return (
+                  <div key={module.resource} className="rounded-lg border border-surface-100 p-4">
+                    <label className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-surface-900">{module.label}</span>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(allSelected)}
+                        onChange={() => toggleModule(module)}
+                        disabled={selectedIsSuperAdmin}
+                        className="h-4 w-4 accent-primary-600"
+                      />
+                    </label>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {module.actions?.map((action) => {
+                        const key = `${module.resource}:${action}`;
+                        return (
+                          <label key={key} className="inline-flex items-center gap-2 rounded-full border border-surface-200 px-3 py-1.5 text-xs font-semibold text-surface-700">
+                            <input
+                              type="checkbox"
+                              checked={selectedPermissions.has(key)}
+                              onChange={() => togglePermission(module.resource, action)}
+                              disabled={selectedIsSuperAdmin}
+                              className="h-3.5 w-3.5 accent-primary-600"
+                            />
+                            {actionLabel(action)}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+              {loading && <div className="p-8 text-center text-sm text-surface-400">Loading permissions...</div>}
+            </div>
+          </section>
         </div>
       </div>
     </div>
