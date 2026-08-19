@@ -17,6 +17,7 @@ import hospitalRoutes         from "./routes/hospital.routes.js";
 import permissionRoutes       from "./routes/permission.routes.js";
 import dashboardRoutes        from "./routes/dashboard.routes.js";
 import publicRoutes           from "./routes/public.routes.js";
+import chatbotRoutes          from "./routes/chatbot.routes.js";
 
 import { notFound, errorHandler } from "./middlewares/error.middleware.js";
 
@@ -57,6 +58,7 @@ app.use("/api/pathology-master", pathologyMasterRoutes);
 app.use("/api/hospital", hospitalRoutes);
 app.use("/api/permission", permissionRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/chatbot", chatbotRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
