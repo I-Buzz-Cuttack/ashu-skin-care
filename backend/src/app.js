@@ -16,6 +16,7 @@ import pathologyMasterRoutes  from "./routes/pathologyMaster.routes.js";
 import hospitalRoutes         from "./routes/hospital.routes.js";
 import permissionRoutes       from "./routes/permission.routes.js";
 import dashboardRoutes        from "./routes/dashboard.routes.js";
+import publicRoutes           from "./routes/public.routes.js";
 
 import { notFound, errorHandler } from "./middlewares/error.middleware.js";
 
@@ -39,6 +40,7 @@ app.use(express.json({ limit: "5mb" }));
 app.use(morgan("dev"));
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+app.use("/api/public", publicRoutes);
 
 // Routes match exactly what the frontend calls (see src/api/apiClient.js,
 // which prefixes every request with /api — see utils/apiBaseUrl.js).
