@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { formatClinicKnowledgeForPrompt } from "./clinicKnowledge.service.js";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-3.6-flash";
 const MAX_HISTORY_MESSAGES = 12;
 
 let client = null;
