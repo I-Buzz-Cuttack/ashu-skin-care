@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
+import { Bot, Loader2, Send, Sparkles, X, Zap } from "lucide-react";
 import { sendChatbotMessage } from "../../api/chatbotAPI";
 
 const INITIAL_MESSAGE = {
@@ -24,6 +24,7 @@ function ChatbotWidget() {
   const [messages, setMessages] = useState([INITIAL_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -51,8 +52,16 @@ function ChatbotWidget() {
           content: message.content,
         }));
 
-      const response = await sendChatbotMessage({ message: text, history });
+      const response = await sendChatbotMessage({ message: text, history, pendingAction });
       const reply = response?.data?.reply || response?.data?.data?.reply || "I could not generate a response.";
+      const nextPendingAction = response?.data?.pendingAction || response?.data?.data?.pendingAction || null;
+      const clearPendingAction = response?.data?.clearPendingAction || response?.data?.data?.clearPendingAction;
+
+      if (clearPendingAction) {
+        setPendingAction(null);
+      } else if (nextPendingAction) {
+        setPendingAction(nextPendingAction);
+      }
 
       setMessages((current) => [
         ...current,
@@ -82,15 +91,26 @@ function ChatbotWidget() {
     }
   };
 
+  const AssistantIcon = ({ compact = false }) => (
+    <span className={`relative flex shrink-0 items-center justify-center ${compact ? "h-10 w-10" : "h-14 w-14"}`}>
+      <span className="absolute inset-0 rounded-2xl bg-emerald-300/35 blur-md animate-pulse" />
+      <span className="absolute inset-0 rounded-2xl border border-emerald-200/70 animate-ping" />
+      <span className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary-500 via-teal-600 to-emerald-400 text-white shadow-lg shadow-primary-700/25 ring-1 ring-white/60">
+        <span className="absolute -left-4 top-0 h-12 w-12 rounded-full bg-white/18 blur-md" />
+        <span className="absolute -bottom-5 right-0 h-12 w-12 rounded-full bg-emerald-200/25 blur-lg" />
+        <Bot size={compact ? 21 : 25} className="relative z-10" />
+        <Zap size={compact ? 9 : 11} className="absolute right-2 top-2 z-10 text-emerald-100 animate-bounce" />
+      </span>
+    </span>
+  );
+
   return (
     <div className="fixed bottom-5 right-5 z-[70] flex flex-col items-end">
       {open && (
         <section className="mb-3 flex h-[min(620px,calc(100vh-7rem))] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-primary-100 bg-white shadow-2xl shadow-primary-900/20">
           <header className="flex items-center justify-between bg-gradient-to-r from-primary-700 via-primary-600 to-emerald-500 px-4 py-3 text-white">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                <Bot size={21} />
-              </span>
+              <AssistantIcon compact />
               <div className="min-w-0">
                 <h2 className="truncate text-sm font-extrabold">Ashu Care AI</h2>
                 <p className="truncate text-xs font-medium text-white/75">Gemini powered assistant</p>
@@ -122,6 +142,11 @@ function ChatbotWidget() {
                     }`}
                   >
                     {message.content}
+                    {message.pendingLabel && (
+                      <div className="mt-2 rounded-lg bg-white/10 px-2 py-1 text-xs font-semibold">
+                        {message.pendingLabel}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -166,12 +191,22 @@ function ChatbotWidget() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600 text-white shadow-xl shadow-primary-700/25 ring-1 ring-white/50 transition hover:-translate-y-0.5 hover:bg-primary-700"
+        className="group relative flex h-16 w-16 items-center justify-center rounded-3xl text-white transition duration-300 hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-primary-500/25"
         aria-label={open ? "Close Chatbot" : "Open Chatbot"}
         title={open ? "Close Chatbot" : "Open Chatbot"}
       >
-        {open ? <X size={24} /> : <MessageCircle size={24} />}
-        {!open && <Sparkles size={13} className="absolute right-3 top-3 text-emerald-100" />}
+        <span className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary-500 via-teal-600 to-emerald-400 shadow-2xl shadow-primary-700/30 transition group-hover:scale-105" />
+        <span className="absolute inset-1 rounded-2xl border border-white/40" />
+        <span className="absolute -inset-1 rounded-3xl border border-emerald-300/40 animate-ping" />
+        {open ? (
+          <X size={25} className="relative z-10" />
+        ) : (
+          <>
+            <AssistantIcon />
+            <Sparkles size={14} className="absolute right-3 top-3 z-20 text-emerald-50 animate-pulse" />
+            <span className="absolute -left-1 top-2 z-20 h-3 w-3 rounded-full bg-emerald-300 shadow-lg shadow-emerald-400/40" />
+          </>
+        )}
       </button>
     </div>
   );
