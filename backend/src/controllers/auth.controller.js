@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import prisma from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { single } from "../utils/response.js";
+import { getEffectivePermissionsForUser } from "../services/permission.service.js";
 
 const REFRESH_COOKIE_NAME = "hms_refresh_token";
 const ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
@@ -113,7 +114,8 @@ export const register = asyncHandler(async (req, res) => {
 
   await issueRefreshToken(res, user);
   const accessToken = signAccessToken(user);
-  return single(res, { user: sanitize(user), accessToken, token: accessToken, role: user.role, permissions: [] }, 201);
+  const permissions = await getEffectivePermissionsForUser(user);
+  return single(res, { user: sanitize(user), accessToken, token: accessToken, role: user.role, permissions }, 201);
 });
 
 // POST /auth/login
@@ -138,7 +140,8 @@ export const login = asyncHandler(async (req, res) => {
 
   await issueRefreshToken(res, user);
   const accessToken = signAccessToken(user);
-  return single(res, { user: sanitize(user), accessToken, token: accessToken, role: user.role, permissions: [] });
+  const permissions = await getEffectivePermissionsForUser(user);
+  return single(res, { user: sanitize(user), accessToken, token: accessToken, role: user.role, permissions });
 });
 
 // POST /auth/refresh
@@ -188,12 +191,13 @@ export const refresh = asyncHandler(async (req, res) => {
   await revokePresentedToken(tokenRecord.id, nextRefresh.id);
 
   const accessToken = signAccessToken(tokenRecord.user);
+  const permissions = await getEffectivePermissionsForUser(tokenRecord.user);
   return single(res, {
     user: sanitize(tokenRecord.user),
     accessToken,
     token: accessToken,
     role: tokenRecord.user.role,
-    permissions: [],
+    permissions,
   });
 });
 
