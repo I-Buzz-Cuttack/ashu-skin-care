@@ -76,6 +76,11 @@ const isCancellation = (message) => {
 const wantsAction = (message) =>
   /\b(add|create|register|update|change|edit|delete|remove|cancel|complete|convert|admit|give|grant|revoke|allow|deactivate|activate|make)\b/.test(normalize(message));
 
+const wantsConversionWithoutTarget = (message) => {
+  const text = normalize(message);
+  return /\b(convert|admit|move)\b/.test(text) && !text.includes("ipd");
+};
+
 const findIdentifier = (message) => {
   const text = String(message || "");
   return {
@@ -243,9 +248,17 @@ const prepareOpdAction = async (message, permissions) => {
   const text = normalize(message);
   const create = /\b(add|create|register)\b/.test(text) && text.includes("opd");
   const convert = /\b(convert|admit|move)\b/.test(text) && text.includes("ipd");
+  const vagueConvert = wantsConversionWithoutTarget(message);
   const cancel = text.includes("cancel") && text.includes("opd");
   const complete = text.includes("complete") && text.includes("opd");
-  if (!create && !convert && !cancel && !complete) return null;
+  if (!create && !convert && !vagueConvert && !cancel && !complete) return null;
+
+  if (vagueConvert) {
+    return {
+      handled: true,
+      reply: "Please tell me what to convert. For IPD conversion, send something like: convert OPD TKN-18082026-00002 to IPD.",
+    };
+  }
 
   if (create) {
     const denied = requirePermission(permissions, "opd", "create");
