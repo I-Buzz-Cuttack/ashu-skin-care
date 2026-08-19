@@ -85,6 +85,16 @@ const formatDateTime = (value) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
+  const isDateOnlyUtcMidnight =
+    typeof value === "string" &&
+    /T00:00:00(?:\.000)?Z$/.test(value);
+  if (isDateOnlyUtcMidnight) {
+    return date.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
   return date.toLocaleString("en-IN", {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",

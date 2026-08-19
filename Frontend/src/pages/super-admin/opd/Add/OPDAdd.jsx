@@ -471,6 +471,13 @@ const OPDAdd = () => {
     return `${yyyy}-${mm}-${dd}`;
   };
 
+  const toLocalAppointmentIso = (dateValue) => {
+    if (!dateValue) return null;
+    const [year, month, day] = String(dateValue).split("-").map(Number);
+    if (!year || !month || !day) return new Date(dateValue).toISOString();
+    return new Date(year, month - 1, day, 12, 0, 0, 0).toISOString();
+  };
+
   const EMPTY_OPD = {
     symptomsType: "", symptomsTitle: "", symptomsDescription: "", note: "", allergies: "",
     prescription: "", previousMedical: "", diagnosis: "", appointmentDate: getTodayDateString(),
@@ -641,7 +648,7 @@ const OPDAdd = () => {
     return {
       appointmentId: routeRecord?.appointmentId || null, patientId: String(selectedPatient.id),
       opdNo: isEdit ? routeRecord?.token || opd.caseNo || null : null, caseId: opd.caseNo || null,
-      appointmentDate: opd.appointmentDate ? new Date(opd.appointmentDate).toISOString() : null,
+      appointmentDate: toLocalAppointmentIso(opd.appointmentDate),
       departmentId: department?.id || selectedCharge?.departmentId || doctor?.department_id || null,
       consultantDoctorId: doctor?.id || null, reference: opd.reference || null, generatedBy: null,
       isOldPatient: opd.oldPatient === "Yes", isCasualty: opd.casualty === "Yes",
