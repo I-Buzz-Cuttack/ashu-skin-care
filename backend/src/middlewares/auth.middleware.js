@@ -1,6 +1,12 @@
 import jwt from "jsonwebtoken";
 import prisma from "../config/db.js";
 
+const normalizeRole = (role) =>
+  String(role || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+
 export const authenticate = async (req, res, next) => {
   try {
     const header = req.headers.authorization || "";
@@ -30,7 +36,10 @@ export const authenticate = async (req, res, next) => {
 // Only allow certain roles. Usage: authorize('SUPER_ADMIN', 'SUB_ADMIN')
 export const authorize = (...roles) => (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: "Not authenticated" });
-  if (roles.length && !roles.includes(req.user.role)) {
+  const userRole = normalizeRole(req.user.role);
+  const allowedRoles = roles.map(normalizeRole);
+  if (userRole === "SUPER_ADMIN") return next();
+  if (allowedRoles.length && !allowedRoles.includes(userRole)) {
     return res.status(403).json({ message: "You do not have permission to perform this action" });
   }
   next();
