@@ -6,6 +6,7 @@ import PageHeader from "@components/layout/PageHeader/PageHeader";
 import Button from "@components/ui/Button/Button";
 import Badge from "@components/ui/Badge/Badge";
 import apiClient from "@api/apiClient";
+import { formatPatientId } from "../../patients/utils/patient.utils";
 
 const unwrapList = (response) => {
   const body = response?.data;
@@ -161,7 +162,7 @@ const PatientCard = ({ patient }) => {
         </div>
       </div>
       <Section title="Identity">
-        <InfoTile label="Patient ID" value={patient.patientId || patient.id} />
+        <InfoTile label="Patient ID" value={formatPatientId(patient.patientId || patient.id, 0)} />
         <InfoTile label="UHID" value={patient.uhid} />
         <InfoTile label="Gender" value={patient.gender} />
         <InfoTile label="Age" value={calculateAge(patient)} />

@@ -21,7 +21,7 @@ import { usePatients } from './hooks/usePatients';
 import {
   exportPatientsToXlsx,
 } from './utils/patient.export';
-import { formatPatientAge } from './utils/patient.utils';
+import { formatPatientId, formatPatientAge } from './utils/patient.utils';
 
 /* ── Static filter options ─────────────────────────────────── */
 const GENDER_OPTIONS = [
@@ -66,7 +66,7 @@ const buildColumns = (onView, onEdit, onDelete) => [
     sortable: true,
     render: (_v, row, index) => (
       <span className="text-xs font-mono font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-2 py-0.5 rounded-md whitespace-nowrap">
-        {row.patientId ?? row.id ?? `PAT${String(index + 1).padStart(3, '0')}`}
+        {formatPatientId(row.patientId ?? row.id, index)}
       </span>
     ),
   },
