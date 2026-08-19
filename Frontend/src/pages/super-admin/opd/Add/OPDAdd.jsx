@@ -471,16 +471,28 @@ const OPDAdd = () => {
     return `${yyyy}-${mm}-${dd}`;
   };
 
-  const toLocalAppointmentIso = (dateValue) => {
-    if (!dateValue) return null;
-    const [year, month, day] = String(dateValue).split("-").map(Number);
-    if (!year || !month || !day) return new Date(dateValue).toISOString();
-    return new Date(year, month - 1, day, 12, 0, 0, 0).toISOString();
+  const getCurrentDateTimeString = () => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const hh = String(now.getHours()).padStart(2, "0");
+    const min = String(now.getMinutes()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  };
+
+  const toLocalAppointmentIso = (dateTimeValue) => {
+    if (!dateTimeValue) return null;
+    const [datePart, timePart = "00:00"] = String(dateTimeValue).split("T");
+    const [year, month, day] = datePart.split("-").map(Number);
+    const [hour, minute] = timePart.split(":").map(Number);
+    if (!year || !month || !day) return new Date(dateTimeValue).toISOString();
+    return new Date(year, month - 1, day, hour || 0, minute || 0, 0, 0).toISOString();
   };
 
   const EMPTY_OPD = {
     symptomsType: "", symptomsTitle: "", symptomsDescription: "", note: "", allergies: "",
-    prescription: "", previousMedical: "", diagnosis: "", appointmentDate: getTodayDateString(),
+    prescription: "", previousMedical: "", diagnosis: "", appointmentDate: getCurrentDateTimeString(),
     caseNo: "OPD" + Date.now().toString().slice(-5),
     casualty: "No", oldPatient: "No", reference: "", consultantDoctor: "",
     liveConsultation: "No", departments: [], applyTpa: false, tpa: "",
@@ -540,7 +552,7 @@ const OPDAdd = () => {
     if ((isEdit || isView) && routeRecord) {
       setOpd(prev => ({
         ...prev,
-        appointmentDate: routeRecord.apiRecord?.appointmentDate?.slice(0, 10) || routeRecord.date || "",
+        appointmentDate: routeRecord.apiRecord?.appointmentDate ? routeRecord.apiRecord.appointmentDate.slice(0, 16) : routeRecord.date || "",
         caseNo: routeRecord.caseId || "", consultantDoctor: routeRecord.doctor || "",
         symptomsType: routeRecord.apiRecord?.symptomsType || "", symptomsTitle: routeRecord.apiRecord?.symptomsTitle || "",
         symptomsDescription: routeRecord.apiRecord?.symptomsDescription || routeRecord.symptoms || "",
@@ -907,7 +919,7 @@ const OPDAdd = () => {
                 ) : (
                   <>
                     <div className="grid grid-cols-1 gap-3">
-                      <Input label="Appointment Date" required type="date" value={opd.appointmentDate} onChange={o("appointmentDate")} error={errors.appointmentDate} />
+                      <Input label="Appointment Date & Time" required type="datetime-local" value={opd.appointmentDate} onChange={o("appointmentDate")} error={errors.appointmentDate} />
                     </div>
                     <div className="mt-3">
                       {/* ── CHANGED: clear consultantDoctor when department changes ── */}
